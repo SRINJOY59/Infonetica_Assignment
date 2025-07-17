@@ -134,6 +134,81 @@ Write-Host "After approval: $($updatedInstance.currentStateId)"
 dotnet test Tests\WorkflowEngine.Tests.csproj --verbosity normal
 ```
 
+## Running Tests
+
+### Prerequisites for Testing
+Make sure you have the test project set up correctly:
+```powershell
+# Verify test project exists
+ls Tests\WorkflowEngine.Tests.csproj
+
+# If the file doesn't exist, the test project structure is missing
+```
+
+### Running All Tests
+```powershell
+# Basic test run
+dotnet test Tests\WorkflowEngine.Tests.csproj
+
+# With detailed output
+dotnet test Tests\WorkflowEngine.Tests.csproj --verbosity normal
+
+# With very detailed output
+dotnet test Tests\WorkflowEngine.Tests.csproj --verbosity detailed
+
+# Run tests and show individual test results
+dotnet test Tests\WorkflowEngine.Tests.csproj --logger "console;verbosity=detailed"
+```
+
+### Test Coverage
+The test suite includes:
+- ✅ Workflow definition creation and validation
+- ✅ Workflow instance management
+- ✅ State transition validation
+- ✅ Action execution
+- ✅ Error handling for invalid operations
+- ✅ Duplicate state/action validation
+- ✅ Final state behavior validation
+
+### Expected Test Output
+```
+Test run for WorkflowEngine.Tests.dll (.NETCoreApp,Version=v8.0)
+Microsoft (R) Test Execution Command Line Tool Version 17.8.0 (x64)
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+
+Passed!  - Failed:     0, Passed:     7, Skipped:     0, Total:     7, Duration: < 1 s
+```
+
+### Troubleshooting Tests
+If tests fail to run:
+
+```powershell
+# Clean and rebuild everything
+dotnet clean
+Remove-Item -Recurse -Force obj, bin -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force Tests\obj, Tests\bin -ErrorAction SilentlyContinue
+
+# Restore packages
+dotnet restore
+dotnet restore Tests\WorkflowEngine.Tests.csproj
+
+# Build main project first
+dotnet build WorkflowEngine.csproj
+
+# Build test project
+dotnet build Tests\WorkflowEngine.Tests.csproj
+
+# Run tests
+dotnet test Tests\WorkflowEngine.Tests.csproj
+```
+
+**Common Test Issues:**
+- **Missing test project file**: Ensure `Tests\WorkflowEngine.Tests.csproj` exists
+- **Build errors**: Clean and rebuild both projects
+- **Package restore issues**: Run `dotnet restore` in both root and Tests directories
+
 ## API Endpoints
 
 ### Workflow Definitions
