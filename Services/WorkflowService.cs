@@ -163,7 +163,7 @@ public class WorkflowService : IWorkflowService
             throw new ArgumentException($"Target state '{action.ToState}' not found in definition");
         }
 
-        // Execute the action
+        // action execution
         var historyEntry = new HistoryEntry
         {
             ActionId = action.Id,
@@ -199,28 +199,28 @@ public class WorkflowService : IWorkflowService
             throw new ArgumentException("Workflow must have actions defined");
         }
 
-        // Check for duplicate state IDs
+        // Checking for duplicate state IDs
         var stateIds = request.States.Select(s => s.Id).ToList();
         if (stateIds.Count != stateIds.Distinct().Count())
         {
             throw new ArgumentException("Duplicate state IDs found");
         }
 
-        // Check for duplicate action IDs
+        // Checking for duplicate action IDs
         var actionIds = request.Actions.Select(a => a.Id).ToList();
         if (actionIds.Count != actionIds.Distinct().Count())
         {
             throw new ArgumentException("Duplicate action IDs found");
         }
 
-        // Check for exactly one initial state
+        // Checking for exactly one initial state
         var initialStates = request.States.Where(s => s.IsInitial).ToList();
         if (initialStates.Count != 1)
         {
             throw new ArgumentException("Workflow must have exactly one initial state");
         }
 
-        // Validate action references
+        // action references validation
         var stateIdSet = new HashSet<string>(stateIds);
         foreach (var action in request.Actions)
         {

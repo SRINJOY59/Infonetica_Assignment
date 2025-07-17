@@ -5,7 +5,7 @@ using WorkflowEngine.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services
+// services
 builder.Services.AddSingleton<IWorkflowService, WorkflowService>();
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
@@ -14,7 +14,7 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline
+// HTTP request pipeline
 if (app.Environment.IsDevelopment())
 {
     app.UseDeveloperExceptionPage();
