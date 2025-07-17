@@ -7,17 +7,24 @@ A minimal backend service that provides a configurable state machine API for wor
 - .NET 8.0 SDK
 - Docker Desktop (for containerized deployment)
 - PowerShell (for testing scripts)
+- Git
 
 ## Getting Started
+
+### Step 0: Clone the Repository
+```powershell
+# Clone the repository
+git clone https://github.com/SRINJOY59/Infonetica.git
+
+# Navigate to the project directory
+cd Infonetica
+```
 
 ### Option 1: Run Locally with .NET
 
 #### Step 1: Clean and Build
 ```powershell
-# Navigate to project directory
-cd "C:\Users\Srinjoy\OneDrive\Desktop\Infonetica"
-
-# Clean previous builds
+# Clean previous builds (if any)
 dotnet clean
 Remove-Item -Recurse -Force obj -ErrorAction SilentlyContinue
 Remove-Item -Recurse -Force bin -ErrorAction SilentlyContinue
@@ -76,12 +83,25 @@ docker stop workflow-engine
 docker rm workflow-engine
 ```
 
-## Testing the API
+## Quick Start Guide
 
-### Quick Test Script
+### 1. Clone and Run
 ```powershell
-# Test if API is running (adjust port based on your setup)
-$baseUrl = "http://localhost:5000"  # or http://localhost:8080 for Docker
+# Clone the repo
+git clone https://github.com/SRINJOY59/Infonetica.git
+cd Infonetica
+
+# Option A: Run locally
+dotnet run
+
+# Option B: Run with Docker
+docker-compose up -d
+```
+
+### 2. Test the API
+```powershell
+# Test if API is running (use port 5000 for local, 8080 for Docker)
+$baseUrl = "http://localhost:5000"  # or "http://localhost:8080" for Docker
 
 # Create a simple workflow
 $workflow = @{
@@ -110,9 +130,6 @@ Write-Host "After approval: $($updatedInstance.currentStateId)"
 
 ### Run Automated Tests
 ```powershell
-# Make sure you have the test project file
-# Tests\WorkflowEngine.Tests.csproj should exist
-
 # Run tests
 dotnet test Tests\WorkflowEngine.Tests.csproj --verbosity normal
 ```
