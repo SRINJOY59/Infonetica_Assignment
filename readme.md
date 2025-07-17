@@ -14,10 +14,10 @@ A backend service that provides a configurable state machine API for workflow ma
 ### Step 1: Clone the Repository
 ```powershell
 # Clone the repository
-git clone https://github.com/SRINJOY59/Infonetica.git
+git clone https://github.com/SRINJOY59/Infonetica_Assignment.git
 
 # Navigate to the project directory
-cd Infonetica
+cd Infonetica_Assignment
 ```
 
 ### Step 2: Complete Clean (Remove all build artifacts)
