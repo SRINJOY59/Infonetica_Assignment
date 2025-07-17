@@ -1,6 +1,6 @@
 # Configurable Workflow Engine
 
-A minimal backend service that provides a configurable state machine API for workflow management.
+A backend service that provides a configurable state machine API for workflow management.
 
 ## Prerequisites
 
@@ -9,9 +9,9 @@ A minimal backend service that provides a configurable state machine API for wor
 - PowerShell (for testing scripts)
 - Git
 
-## Getting Started
+## Complete Setup and Testing Guide
 
-### Step 0: Clone the Repository
+### Step 1: Clone the Repository
 ```powershell
 # Clone the repository
 git clone https://github.com/SRINJOY59/Infonetica.git
@@ -20,92 +20,144 @@ git clone https://github.com/SRINJOY59/Infonetica.git
 cd Infonetica
 ```
 
-### Option 1: Run Locally with .NET
-
-#### Step 1: Clean and Build
+### Step 2: Complete Clean (Remove all build artifacts)
 ```powershell
-# Clean previous builds (if any)
+# Clean .NET build artifacts
 dotnet clean
-Remove-Item -Recurse -Force obj -ErrorAction SilentlyContinue
-Remove-Item -Recurse -Force bin -ErrorAction SilentlyContinue
 
-# Restore dependencies and build
+# Remove all obj and bin directories
+Remove-Item -Recurse -Force obj, bin -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force Tests\obj, Tests\bin -ErrorAction SilentlyContinue
+
+# Clean Docker artifacts (if any exist)
+docker system prune -f
+```
+
+### Step 3: Restore Dependencies
+```powershell
+# Restore main project dependencies
 dotnet restore
-dotnet build
+
+# Restore test project dependencies
+dotnet restore Tests\WorkflowEngine.Tests.csproj
 ```
 
-#### Step 2: Run the Application
+### Step 4: Build Projects
 ```powershell
-dotnet run
+# Build main project
+dotnet build WorkflowEngine.csproj
+
+# Build test project
+dotnet build Tests\WorkflowEngine.Tests.csproj
+
+# Verify builds completed successfully
+Write-Host "✅ Build completed successfully!"
 ```
 
-The API will be available at:
-- HTTP: `http://localhost:5000`
-- HTTPS: `https://localhost:5001`
-
-### Option 2: Run with Docker
-
-#### Step 1: Build Docker Image
+### Step 5: Run Automated Tests
 ```powershell
-# Clean everything first
-dotnet clean
-Remove-Item -Recurse -Force obj -ErrorAction SilentlyContinue
-Remove-Item -Recurse -Force bin -ErrorAction SilentlyContinue
+# Run all tests with detailed output
+dotnet test Tests\WorkflowEngine.Tests.csproj --verbosity normal
 
-# Build Docker image
-docker build -t workflow-engine .
+# Expected output:
+# Passed!  - Failed: 0, Passed: 7, Skipped: 0, Total: 7
+Write-Host "✅ All tests passed!"
 ```
 
-#### Step 2: Run with Docker Compose (Recommended)
+### Step 6: Run with Docker Compose
 ```powershell
-# Start the application
-docker-compose up -d
+# Build and start Docker containers
+docker-compose up --build -d
 
-# View logs
-docker-compose logs -f
+# Verify container is running
+docker-compose ps
 
-# Stop the application
-docker-compose down
+# View logs (optional)
+docker-compose logs -f workflow-engine
+
+# Test Docker deployment
+$dockerUrl = "http://localhost:8080"
+try {
+    $response = Invoke-RestMethod -Uri "$dockerUrl/api/workflows" -Method GET
+    Write-Host "✅ Docker deployment successful! API accessible at $dockerUrl"
+} catch {
+    Write-Host "❌ Docker deployment failed: $($_.Exception.Message)"
+}
 ```
 
-The API will be available at: `http://localhost:8080`
-
-#### Alternative: Run Docker Container Directly
+### Step 7: Test API with Docker
 ```powershell
-# Run container
-docker run -d -p 8080:8080 -v ${PWD}/data:/app/data --name workflow-engine workflow-engine
+# Set base URL for Docker
+$baseUrl = "http://localhost:8080"
 
-# View logs
-docker logs workflow-engine
-
-# Stop container
-docker stop workflow-engine
-docker rm workflow-engine
-```
-
-## Quick Start Guide
-
-### 1. Clone and Run
-```powershell
-# Clone the repo
-git clone https://github.com/SRINJOY59/Infonetica.git
-cd Infonetica
-
-# Option A: Run locally
-dotnet run
-
-# Option B: Run with Docker
-docker-compose up -d
-```
-
-### 2. Test the API
-```powershell
-# Test if API is running (use port 5000 for local, 8080 for Docker)
-$baseUrl = "http://localhost:5000"  # or "http://localhost:8080" for Docker
-
-# Create a simple workflow
+# Test 1: Create a workflow
 $workflow = @{
-    name = "Document Approval"
+    name = "Document Approval Process"
+    states = @(
+        @{id="draft"; name="Draft"; isInitial=$true; isFinal=$false; enabled=$true}
+        @{id="review"; name="Under Review"; isInitial=$false; isFinal=$false; enabled=$true}
+        @{id="approved"; name="Approved"; isInitial=$false; isFinal=$true; enabled=$true}
+    )
+    actions = @(
+        @{id="submit"; name="Submit for Review"; fromStates=@("draft"); toState="review"; enabled=$true}
+        @{id="approve"; name="Approve"; fromStates=@("review"); toState="approved"; enabled=$true}
+    )
+} | ConvertTo-Json -Depth 3
+
+$createdWorkflow = Invoke-RestMethod -Uri "$baseUrl/api/workflows" -Method POST -Body $workflow -ContentType "application/json"
+Write-Host "✅ Created workflow: $($createdWorkflow.name) with ID: $($createdWorkflow.id)"
+
+# Test 2: Start workflow instance
+$instance = Invoke-RestMethod -Uri "$baseUrl/api/workflows/$($createdWorkflow.id)/instances" -Method POST
+Write-Host "✅ Started instance: $($instance.id) in state: $($instance.currentStateId)"
+
+# Test 3: Execute submit action
+$submitAction = @{actionId="submit"} | ConvertTo-Json
+$instance = Invoke-RestMethod -Uri "$baseUrl/api/instances/$($instance.id)/execute" -Method POST -Body $submitAction -ContentType "application/json"
+Write-Host "✅ After submit: Current state = $($instance.currentStateId)"
+
+# Test 4: Execute approve action
+$approveAction = @{actionId="approve"} | ConvertTo-Json
+$instance = Invoke-RestMethod -Uri "$baseUrl/api/instances/$($instance.id)/execute" -Method POST -Body $approveAction -ContentType "application/json"
+Write-Host "✅ After approve: Current state = $($instance.currentStateId)"
+
+# Test 5: View workflow history
+Write-Host "📋 Workflow History:"
+$instance.history | ForEach-Object { 
+    Write-Host "  $($_.timestamp): $($_.actionName) ($($_.fromStateId) -> $($_.toStateId))" 
+}
+
+Write-Host "🎉 Docker API testing completed successfully!"
+```
+
+### Step 8: Stop Docker and Run Locally
+```powershell
+# Stop Docker containers
+docker-compose down
+Write-Host "✅ Docker containers stopped"
+
+# Run locally with .NET
+Start-Process powershell -ArgumentList "-Command", "dotnet run" -WindowStyle Normal
+Start-Sleep 5  # Wait for application to start
+
+# Test local deployment
+$localUrl = "http://localhost:5000"
+try {
+    $response = Invoke-RestMethod -Uri "$localUrl/api/workflows" -Method GET
+    Write-Host "✅ Local deployment successful! API accessible at $localUrl"
+} catch {
+    Write-Host "❌ Local deployment failed. Make sure application started properly."
+}
+```
+
+### Step 9: Test API Locally
+```powershell
+# Set base URL for local testing
+$baseUrl = "http://localhost:5000"
+
+# Quick API test
+$simpleWorkflow = @{
+    name = "Simple Approval"
     states = @(
         @{id="draft"; name="Draft"; isInitial=$true; isFinal=$false; enabled=$true}
         @{id="approved"; name="Approved"; isInitial=$false; isFinal=$true; enabled=$true}
@@ -115,186 +167,112 @@ $workflow = @{
     )
 } | ConvertTo-Json -Depth 3
 
-$createdWorkflow = Invoke-RestMethod -Uri "$baseUrl/api/workflows" -Method POST -Body $workflow -ContentType "application/json"
-Write-Host "Created workflow: $($createdWorkflow.name) with ID: $($createdWorkflow.id)"
-
-# Start an instance
-$instance = Invoke-RestMethod -Uri "$baseUrl/api/workflows/$($createdWorkflow.id)/instances" -Method POST
-Write-Host "Started instance: $($instance.id) in state: $($instance.currentStateId)"
-
-# Execute action
+$workflow = Invoke-RestMethod -Uri "$baseUrl/api/workflows" -Method POST -Body $simpleWorkflow -ContentType "application/json"
+$instance = Invoke-RestMethod -Uri "$baseUrl/api/workflows/$($workflow.id)/instances" -Method POST
 $action = @{actionId="approve"} | ConvertTo-Json
-$updatedInstance = Invoke-RestMethod -Uri "$baseUrl/api/instances/$($instance.id)/execute" -Method POST -Body $action -ContentType "application/json"
-Write-Host "After approval: $($updatedInstance.currentStateId)"
+$finalInstance = Invoke-RestMethod -Uri "$baseUrl/api/instances/$($instance.id)/execute" -Method POST -Body $action -ContentType "application/json"
+
+Write-Host "✅ Local API test completed! Final state: $($finalInstance.currentStateId)"
 ```
 
-### Run Automated Tests
+## One-Command Complete Test
 ```powershell
-# Run tests
-dotnet test Tests\WorkflowEngine.Tests.csproj --verbosity normal
+# Complete end-to-end test script
+function Test-WorkflowEngine {
+    Write-Host "🚀 Starting complete Workflow Engine test..."
+    
+    # Step 1: Clean
+    Write-Host "🧹 Cleaning..."
+    dotnet clean
+    Remove-Item -Recurse -Force obj, bin -ErrorAction SilentlyContinue
+    Remove-Item -Recurse -Force Tests\obj, Tests\bin -ErrorAction SilentlyContinue
+    
+    # Step 2: Restore & Build
+    Write-Host "📦 Restoring and building..."
+    dotnet restore
+    dotnet build
+    
+    # Step 3: Test
+    Write-Host "🧪 Running tests..."
+    dotnet test Tests\WorkflowEngine.Tests.csproj --verbosity normal
+    
+    # Step 4: Docker
+    Write-Host "🐳 Testing with Docker..."
+    docker-compose up --build -d
+    Start-Sleep 10
+    
+    # Quick Docker test
+    $dockerResponse = Invoke-RestMethod -Uri "http://localhost:8080/api/workflows" -Method GET
+    Write-Host "✅ Docker test passed"
+    
+    # Step 5: Local
+    Write-Host "💻 Testing locally..."
+    docker-compose down
+    Start-Process powershell -ArgumentList "-Command", "dotnet run" -WindowStyle Normal
+    Start-Sleep 5
+    
+    $localResponse = Invoke-RestMethod -Uri "http://localhost:5000/api/workflows" -Method GET
+    Write-Host "✅ Local test passed"
+    
+    Write-Host "🎉 All tests completed successfully!"
+}
+
+# Run complete test
+Test-WorkflowEngine
 ```
 
-## Running Tests
-
-### Prerequisites for Testing
-Make sure you have the test project set up correctly:
-```powershell
-# Verify test project exists
-ls Tests\WorkflowEngine.Tests.csproj
-
-# If the file doesn't exist, the test project structure is missing
-```
-
-### Running All Tests
-```powershell
-# Basic test run
-dotnet test Tests\WorkflowEngine.Tests.csproj
-
-# With detailed output
-dotnet test Tests\WorkflowEngine.Tests.csproj --verbosity normal
-
-# With very detailed output
-dotnet test Tests\WorkflowEngine.Tests.csproj --verbosity detailed
-
-# Run tests and show individual test results
-dotnet test Tests\WorkflowEngine.Tests.csproj --logger "console;verbosity=detailed"
-```
-
-### Test Coverage
-The test suite includes:
-- ✅ Workflow definition creation and validation
-- ✅ Workflow instance management
-- ✅ State transition validation
-- ✅ Action execution
-- ✅ Error handling for invalid operations
-- ✅ Duplicate state/action validation
-- ✅ Final state behavior validation
-
-### Expected Test Output
-```
-Test run for WorkflowEngine.Tests.dll (.NETCoreApp,Version=v8.0)
-Microsoft (R) Test Execution Command Line Tool Version 17.8.0 (x64)
-
-Starting test execution, please wait...
-A total of 1 test files matched the specified pattern.
-
-Passed!  - Failed:     0, Passed:     7, Skipped:     0, Total:     7, Duration: < 1 s
-```
-
-### Troubleshooting Tests
-If tests fail to run:
-
-```powershell
-# Clean and rebuild everything
-dotnet clean
-Remove-Item -Recurse -Force obj, bin -ErrorAction SilentlyContinue
-Remove-Item -Recurse -Force Tests\obj, Tests\bin -ErrorAction SilentlyContinue
-
-# Restore packages
-dotnet restore
-dotnet restore Tests\WorkflowEngine.Tests.csproj
-
-# Build main project first
-dotnet build WorkflowEngine.csproj
-
-# Build test project
-dotnet build Tests\WorkflowEngine.Tests.csproj
-
-# Run tests
-dotnet test Tests\WorkflowEngine.Tests.csproj
-```
-
-**Common Test Issues:**
-- **Missing test project file**: Ensure `Tests\WorkflowEngine.Tests.csproj` exists
-- **Build errors**: Clean and rebuild both projects
-- **Package restore issues**: Run `dotnet restore` in both root and Tests directories
-
-## API Endpoints
+## API Endpoints Reference
 
 ### Workflow Definitions
 - `POST /api/workflows` - Create workflow definition
-- `GET /api/workflows` - List all workflows
+- `GET /api/workflows` - List all workflows  
 - `GET /api/workflows/{id}` - Get specific workflow
 
-### Workflow Instances  
+### Workflow Instances
 - `POST /api/workflows/{definitionId}/instances` - Start new instance
 - `GET /api/instances` - List all instances
-- `GET /api/instances/{id}` - Get specific instance
+- `GET /api/instances/{id}` - Get specific instance  
 - `POST /api/instances/{id}/execute` - Execute action
-
-## Complete Example Workflow
-
-### 1. Create Complex Workflow
-```powershell
-$complexWorkflow = @{
-    name = "Purchase Order Process"
-    states = @(
-        @{id="created"; name="Created"; isInitial=$true; isFinal=$false; enabled=$true}
-        @{id="pending"; name="Pending Approval"; isInitial=$false; isFinal=$false; enabled=$true}
-        @{id="approved"; name="Approved"; isInitial=$false; isFinal=$false; enabled=$true}
-        @{id="rejected"; name="Rejected"; isInitial=$false; isFinal=$true; enabled=$true}
-        @{id="completed"; name="Completed"; isInitial=$false; isFinal=$true; enabled=$true}
-    )
-    actions = @(
-        @{id="submit"; name="Submit"; fromStates=@("created"); toState="pending"; enabled=$true}
-        @{id="approve"; name="Approve"; fromStates=@("pending"); toState="approved"; enabled=$true}
-        @{id="reject"; name="Reject"; fromStates=@("pending"); toState="rejected"; enabled=$true}
-        @{id="complete"; name="Complete"; fromStates=@("approved"); toState="completed"; enabled=$true}
-    )
-} | ConvertTo-Json -Depth 3
-
-$baseUrl = "http://localhost:5000"  # Change to 8080 for Docker
-$workflow = Invoke-RestMethod -Uri "$baseUrl/api/workflows" -Method POST -Body $complexWorkflow -ContentType "application/json"
-```
-
-### 2. Execute Full Workflow
-```powershell
-# Start instance
-$instance = Invoke-RestMethod -Uri "$baseUrl/api/workflows/$($workflow.id)/instances" -Method POST
-
-# Submit for approval
-$submit = @{actionId="submit"} | ConvertTo-Json
-$instance = Invoke-RestMethod -Uri "$baseUrl/api/instances/$($instance.id)/execute" -Method POST -Body $submit -ContentType "application/json"
-
-# Approve
-$approve = @{actionId="approve"} | ConvertTo-Json  
-$instance = Invoke-RestMethod -Uri "$baseUrl/api/instances/$($instance.id)/execute" -Method POST -Body $approve -ContentType "application/json"
-
-# Complete
-$complete = @{actionId="complete"} | ConvertTo-Json
-$instance = Invoke-RestMethod -Uri "$baseUrl/api/instances/$($instance.id)/execute" -Method POST -Body $complete -ContentType "application/json"
-
-# View final state and history
-Write-Host "Final state: $($instance.currentStateId)"
-$instance.history | ForEach-Object { Write-Host "$($_.actionName): $($_.fromStateId) -> $($_.toStateId)" }
-```
 
 ## Troubleshooting
 
-### Common Issues
-
-**Build Errors:**
+### If Tests Fail
 ```powershell
-# Clean everything and rebuild
+# Complete reset
 dotnet clean
-Remove-Item -Recurse -Force obj, bin -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force obj, bin, Tests\obj, Tests\bin -ErrorAction SilentlyContinue
 dotnet restore
+dotnet restore Tests\WorkflowEngine.Tests.csproj
 dotnet build
+dotnet test Tests\WorkflowEngine.Tests.csproj
 ```
 
-**Docker Issues:**
+### If Docker Fails
 ```powershell
-# Rebuild Docker image
+# Reset Docker
 docker-compose down
-docker rmi workflow-engine
+docker system prune -f
 docker-compose up --build -d
 ```
 
-**Port Conflicts:**
-- Local .NET app uses ports 5000/5001
-- Docker uses port 8080
-- Change ports in `docker-compose.yml` if needed
+### If Local App Fails
+```powershell
+# Check if port is in use
+netstat -an | findstr :5000
 
-**Test Issues:**
-- Make sure `Tests\WorkflowEngine.Tests.csproj` exists
-- Run tests with: `dotnet test Tests\WorkflowEngine.Tests.csproj`
+# Kill existing processes if needed
+Get-Process -Name "WorkflowEngine" -ErrorAction SilentlyContinue | Stop-Process -Force
+dotnet run
+```
+
+## Quick Commands Summary
+```powershell
+# Full clean and test cycle
+dotnet clean && Remove-Item -Recurse -Force obj, bin, Tests\obj, Tests\bin -ErrorAction SilentlyContinue && dotnet restore && dotnet build && dotnet test Tests\WorkflowEngine.Tests.csproj
+
+# Docker quick start  
+docker-compose up --build -d
+
+# Local quick start
+dotnet run
+```
